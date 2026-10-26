@@ -1,7 +1,7 @@
 /**
  * @file memorizer_base.cpp
  *
- * @version 1.0
+ * @version 1.1
  *
  * @brief Baseline memorizer trie model build and recall implementation.
  *
@@ -92,12 +92,11 @@ public:
 			if( nd.votes == 0 || nd.mode == target )
 			{
 				nd.mode = target;
-				nd.votes++;
+				nd.votes += 2;
 			}
 			else
-			if( --nd.votes == 0 )
 			{
-				nd.mode = target;
+				nd.votes--;
 			}
 		}
 	}
@@ -411,7 +410,7 @@ int main( int argc, char** argv )
 	printf( "\n%s | %zu bytes\n", fname, raw.size() );
 
 	evalModel< std::uint32_t, 4, 8 >( raw, 20 );
-	evalModel< std::uint32_t, 2, 16 >( raw, 20 );
+	evalModel< std::uint32_t, 2, 8 >( raw, 20 );
 	evalModel< std::uint32_t, 8, 4 >( raw, 5 );
 
 	return( 0 );
