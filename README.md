@@ -1,4 +1,61 @@
-# memorizer9
+# Introduction
+
+This repository presents a novel information trie structure that can
+efficiently memorize data and subsequently recall it, provided that the model
+is accompanied by a "residual" data channel - the elements of the data that
+the model fails to reconstruct.
+
+`memorizer_base.cpp` provides the baseline memorizer trie implementation;
+it is the best way to study and understand how it works.
+
+The model can be created in independent threads and then radix-merged.
+In addition, true multithreaded decompression is naturally possible if the
+output stores the initial context (just 4 bytes) for each thread. Experiments
+show that running node-level symbol statistics (which constitute
+self-contained context modeling) permit recovering up to 40% of misses at
+a small model-size cost. Fast integer leaky integrators are adequate for local
+contexts; in fact, they are already used to model the probabilities of residue
+symbols for the range encoder in `memorizer9.cpp`, and they can be
+SIMD-optimized.
+
+`memorizer9.cpp` is a practical implementation of a single-file compressor
+based on the memorizer trie model. It achieves PPM compression levels at
+comparable and sometimes higher speeds.
+
+## Inception of Memorizer
+
+The author's (Aleksey Vaneev) precursor idea *and* preliminary implementation
+addressed the following problem: how to map a given input and its contexts to
+a constellation of N-dimensional points so that a specific traversal of these
+points, without knowing the context, reconstructs or "recalls" the context,
+with each point mapping to a symbol. The initial solution was based on
+floating-point vectors, and it turned out to memorize 99.5% of the context and
+to require fewer points than there were input symbols, so it generalized to
+some degree.
+
+The next step was to discretize the vector into -1 and 1 values - binary
+vectors. This yielded lower memorization precision but permitted the model to
+be mapped to fixed-width integers. As you can imagine, a set of N-dimensional
+points with only a symbol constraint can be represented by an infinite number
+of sets of unique coordinate vectors. Thus, one can map a binary vector to an
+exact input context as uniquely as by using any other uniqueness rule. So, in
+its final form, the memorizer forms a constellation of context-points with
+binary coordinates, each mapped to a specific symbol. It is unbelievably
+simple in the end. The complexity lies in making it work fast.
+
+The inevitable outcome of the inexactness of reconstruction is the residual
+channel; without filling the gaps, the full output cannot be reconstructed.
+But the means of carrying this residual channel are not specific - even ECC
+can be used.
+
+And to set the record straight, this is not context modeling (AI systems often
+conflate the concepts). The Memorizer method does not require probability
+evaluations at all (the "first in" symbol can be used as the node answer).
+The most effective approach to assigning a symbol to a context-point (node) is
+the "majority vote" rule: the symbol that follows a given context most often
+should be assigned to the context-point (Boyer-Moore candidate).
+
+## memorizer9
 
 A memoriser compressor that transmits a trie of contexts and nothing else: the model
 channel carries the shape of the trie, and the input is coded as one hit/miss bit per
