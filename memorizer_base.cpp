@@ -1,7 +1,7 @@
 /**
  * @file memorizer_base.cpp
  *
- * @version 1.1
+ * @version 1.2
  *
  * @brief Baseline memorizer trie model build and recall implementation.
  *
@@ -40,7 +40,7 @@
 #include <vector>
 #include <chrono>
 
-static double ent( const std::vector< int >& h, std::size_t tot )
+static double ent( const std::vector< int >& h, std::uint64_t tot )
 {
 	if( tot == 0 ) return( 0.0 );
 
@@ -228,7 +228,7 @@ private:
 	struct node
 	{
 		int mode = 0; // Modal symbol (Boyer-Moore candidate, inexact).
-		int votes = 0; // Mode's majority vote counter.
+		int votes = 0; // Mode's weighted Boyer-Moore balance.
 
 		union
 		{
@@ -332,8 +332,8 @@ void evalModel( const std::vector< char >& raw, const int S )
 
 	ctx_walker< TK, W, Q > cw( raw );
 	std::vector< int > resid( 1 << W, 0 );
-	int miss = 0;
-	int tot = 0;
+	std::uint64_t miss = 0;
+	std::uint64_t tot = 0;
 
 	while( true )
 	{
@@ -364,9 +364,9 @@ void evalModel( const std::vector< char >& raw, const int S )
 	double pt = std::chrono::duration< double >( t2 - t1 ).count();
 	pt = ( pt <= 0.0 ? 1.0 : pt );
 
-	printf( "  W=%d Q=%d S=%d A=%d | nodes %zu | recall %.2f%% | "
-		"H(hit) %.2f | H(resid) %.2f\n"
-		"    model size ~%.0f B\n    build %.2f MB/s | predict %.2f MB/s\n",
+	printf( "  W=%d Q=%2d S=%2d A=%3d | nodes %6zu | recall %4.1f%% | "
+		"H(hit) %.2f | H(res) %.2f\n"
+		"    model size ~%.0f B\n    build %6.2f MB/s | predict %6.2f MB/s\n\n",
 		W, Q, S, M1.alphabet(), M1.size(), 100.0 * r1, Hb1, Hres,
 		M1.huffSize() / 8.0, 1e-6 * (double) raw.size() / bt,
 		1e-6 * (double) raw.size() / pt );
@@ -376,11 +376,10 @@ int main( int argc, char** argv )
 {
 	if( argc < 2 )
 	{
-		fprintf( stderr, "file name not specified\n" );
+		fprintf( stderr, "filename argument not specified\n" );
 		return( 1 );
 	}
 
-	const long long fsize_max = 500000000;
 	const char* const fname = argv[ 1 ];
 
 	std::vector< char > raw;
@@ -391,16 +390,6 @@ int main( int argc, char** argv )
 		{
 			fprintf( stderr, "cannot open %s\n", fname );
 			return( 2 );
-		}
-
-		in.seekg( 0, std::ios::end );
-		long long fsize = in.tellg();
-		in.seekg( 0, std::ios::beg );
-
-		if( fsize <= 0 || fsize > fsize_max )
-		{
-			fprintf( stderr, "Zero-length or too large file %lld\n", fsize );
-			return( 3 );
 		}
 
 		raw.assign(( std::istreambuf_iterator< char >( in )),

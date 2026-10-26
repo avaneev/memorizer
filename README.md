@@ -16,7 +16,9 @@ self-contained context modeling) permit recovering up to 40% of misses at
 a small model-size cost. Fast integer leaky integrators are adequate for local
 contexts; in fact, they are already used to model the probabilities of residue
 symbols for the range encoder in `memorizer9.cpp`, and they can be
-SIMD-optimized.
+SIMD-optimized. Additionally, the hit/miss bit stream and residue symbols
+can be combined together (to form full W-bit symbols) and then passed to a
+second-stage memorizer.
 
 `memorizer9.cpp` is a practical implementation of a single-file compressor
 based on the memorizer trie model. It achieves PPM compression levels at
@@ -52,8 +54,9 @@ And to set the record straight, this is not context modeling (AI systems often
 conflate the concepts). The Memorizer method does not require probability
 evaluations at all (the "first in" symbol can be used as the node answer).
 The most effective approach to assigning a symbol to a context-point (node) is
-the "majority vote" rule: the symbol that follows a given context most often
-should be assigned to the context-point (Boyer-Moore candidate).
+the weighted "majority vote" rule: the symbol that follows a given context
+most often should be assigned to the context-point (weighted Boyer-Moore
+balance).
 
 ## memorizer9
 
