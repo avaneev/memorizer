@@ -1,7 +1,7 @@
 /**
  * @file memorizer_base.cpp
  *
- * @version 1.2
+ * @version 1.3
  *
  * @brief Baseline memorizer trie model build and recall implementation.
  *
@@ -62,8 +62,8 @@ template< typename TK, int W, int Q >
 class memorizer
 {
 public:
-	static const TK Wmask = ( (TK) 1 << W ) - 1;
-	static const TK Qmask = ( W * Q >= sizeof( TK ) * 8 ) ?
+	static constexpr TK Wmask = ( (TK) 1 << W ) - 1;
+	static constexpr TK Qmask = ( W * Q >= sizeof( TK ) * 8 ) ?
 		~(TK) 0 : ( (TK) 1 << ( W * Q )) - 1;
 
 	memorizer()
@@ -80,23 +80,29 @@ public:
 		}
 	}
 
-	void addContext( const TK ctx, const int target )
+	// OS - online occurrence support pruning cutoff, chosen by input size.
+	void addContext( const TK ctx, const int target, const int OS = 0 )
 	{
-		for( int d = 0; d < Q; d++ )
+		if( OS < 2 )
 		{
-			TK k = ctx & Qmasks[ d ];
-
-			node& nd = trie[ d ][ k ];
-			nd.support++;
-
-			if( nd.votes == 0 || nd.mode == target )
+			for( int d = 0; d < Q; d++ )
 			{
-				nd.mode = target;
-				nd.votes += 2;
+				trie[ d ][ ctx & Qmasks[ d ]].update( target );
 			}
-			else
+
+			return;
+		}
+		else
+		{
+			node* prev = &trie[ 0 ][ ctx & Qmasks[ 0 ]];
+			prev->update( target );
+
+			for( int d = 1; d < Q; d++ )
 			{
-				nd.votes--;
+				if( prev->support < OS ) break;
+
+				prev = &trie[ d ][ ctx & Qmasks[ d ]];
+				prev->update( target );
 			}
 		}
 	}
@@ -235,6 +241,21 @@ private:
 			int support = 0; // The number of occurrences of this context.
 			int childs; // The number of child nodes after prune().
 		};
+
+		void update( const int target )
+		{
+			support++;
+
+			if( votes == 0 || mode == target )
+			{
+				mode = target;
+				votes += 2;
+			}
+			else
+			{
+				votes--;
+			}
+		}
 	};
 
 	std::unordered_map< TK, node > trie[ Q ]; // Trie partitioned by ctx length.
@@ -304,11 +325,13 @@ private:
 	int cbits = 0;
 };
 
-template< typename TK, int W, int Q >
+template< typename TK, int W, int Q, bool oprune = false >
 void evalModel( const std::vector< char >& raw, const int S )
 {
 	const std::chrono::steady_clock::time_point t0 =
 		std::chrono::steady_clock::now();
+
+	const int OS = ( oprune ? (int) ( raw.size() * 8 / ( W * 100000 )) : 0 );
 
 	memorizer< TK, W, Q > M1;
 	{
@@ -321,7 +344,7 @@ void evalModel( const std::vector< char >& raw, const int S )
 
 			if( next_sym < 0 ) break;
 
-			M1.addContext( ctx, next_sym );
+			M1.addContext( ctx, next_sym, OS );
 		}
 	}
 
@@ -364,11 +387,12 @@ void evalModel( const std::vector< char >& raw, const int S )
 	double pt = std::chrono::duration< double >( t2 - t1 ).count();
 	pt = ( pt <= 0.0 ? 1.0 : pt );
 
-	printf( "  W=%d Q=%2d S=%2d A=%3d | nodes %6zu | recall %4.1f%% | "
+	printf( "W=%2d Q=%2d S=%2d A=%3d | nodes %6zu | recall %4.1f%% | "
 		"H(hit) %.2f | H(res) %.2f\n"
-		"    model size ~%.0f B\n    build %6.2f MB/s | predict %6.2f MB/s\n\n",
+		"  model size ~%.0f B | OS %i\n"
+		"  build %6.2f MB/s  | predict %6.2f MB/s\n\n",
 		W, Q, S, M1.alphabet(), M1.size(), 100.0 * r1, Hb1, Hres,
-		M1.huffSize() / 8.0, 1e-6 * (double) raw.size() / bt,
+		M1.huffSize() / 8.0, OS, 1e-6 * (double) raw.size() / bt,
 		1e-6 * (double) raw.size() / pt );
 }
 
@@ -399,8 +423,11 @@ int main( int argc, char** argv )
 	printf( "\n%s | %zu bytes\n", fname, raw.size() );
 
 	evalModel< std::uint32_t, 4, 8 >( raw, 20 );
+	evalModel< std::uint32_t, 4, 8, true >( raw, 20 );
 	evalModel< std::uint32_t, 2, 8 >( raw, 20 );
+	evalModel< std::uint32_t, 2, 8, true >( raw, 20 );
 	evalModel< std::uint32_t, 8, 4 >( raw, 5 );
+	evalModel< std::uint32_t, 8, 4, true >( raw, 5 );
 
 	return( 0 );
 }
