@@ -1,12 +1,16 @@
 # Introduction
 
-This repository presents a novel information trie structure that can
+This repository presents a novel information-trie structure that can
 efficiently memorize data and subsequently recall it, provided that the model
-is accompanied by a "residual" data channel - the elements of the data that
-the model fails to reconstruct.
+is accompanied by a "residual" data channel: the elements of the data that the
+model fails to predict. Since this trie naturally generalizes the data used to
+construct it, its held-out prediction rate is substantial, especially for 2-
+and 1-bit symbol streams.
 
-`memorizer_base.cpp` provides the baseline memorizer trie implementation;
-it is the best way to study and understand how it works.
+`memorizer_base.cpp` provides the baseline implementation; it is the best way
+to study and understand how it works. To avoid conflating it with other
+"memorizer" tries, the proposed name for this trie structure is
+the Thales trie.
 
 The model can be created in independent threads and then radix-merged.
 In addition, true multithreaded decompression is naturally possible if the
@@ -16,9 +20,16 @@ self-contained context modeling) permit recovering up to 40% of misses at
 a small model-size cost. Fast integer leaky integrators are adequate for local
 contexts; in fact, they are already used to model the probabilities of residue
 symbols for the range encoder in `memorizer9.cpp`, and they can be
-SIMD-optimized. Additionally, the hit/miss bit stream and residue symbols
-can be combined together (to form full W-bit symbols) and then passed to a
-second-stage memorizer.
+SIMD-optimized.
+
+Additionally, the hit/miss bit stream and residue symbols can be combined
+(to form full W-bit symbols) and then passed to the LZ77 match finder, which
+can use the built trie nodes to store offsets (instead of using a hash table):
+tests demonstrate 40-70% coverage of such full-W residues by LZ matches.
+If encoding time constraints permit, the entropy of the hit/miss bit stream
+can be reduced by 10–20% with a secondary 1-bit memorizer with Q = 6 to 10
+(its output simply needs to be XORed with the original bit stream; no residue
+of its own needs to be stored).
 
 `memorizer9.cpp` is a practical implementation of a single-file compressor
 based on the memorizer trie model. It achieves PPM compression levels at
