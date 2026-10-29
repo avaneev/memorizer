@@ -10,7 +10,7 @@ and 1-bit symbol streams.
 `memorizer_base.cpp` provides the baseline implementation; it is the best way
 to study and understand how it works. To avoid conflating it with other
 "memorizer" tries, the proposed name for this trie structure is
-the Thales trie.
+the Thales trie (or by author's name if that's culturally adequate).
 
 The model can be created in independent threads and then radix-merged.
 In addition, true multithreaded decompression is naturally possible if the
